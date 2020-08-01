@@ -1,3 +1,4 @@
+;;trivial-gamekit‚ÌŠÖ”‚ÌŠO‚Åai“Ç‚İ‚İ‚µ‚È‚¢‚Æ‚¾‚ß‚ç‚µ‚¢
 (ql:quickload '(:trivial-gamekit :cl-bodge :jonathan :cl-ppcre))
 
 (defpackage moge
@@ -151,7 +152,7 @@
       (t
        (setf (atama com) "å")))
     (format t "LOGE")
-    (format (ai-stream com) "~d" id)
+    (format (ai-stream com) "~d~%" id)
     (finish-output (ai-stream com))
     (format t "POGE")
     (push com (players *game*))
@@ -352,8 +353,8 @@
   
 (defun get-data-from-com (com)
   (format t "WW~%")
-  (format t "~a~%" (read-line (ai-stream com)))
-  ;;(setf (action com) (read-line (ai-stream com)))
+ ;; (format t "~a~%" (read-line (ai-stream com)))
+  (setf (action com) (read-line (ai-stream com)))
   (format t "RR~%"))
 
 
@@ -361,7 +362,7 @@
 ;;-----------------------------------------------------------------
 (defun update-position (com)
   (format t "TT~%")
-  (let ((dir (ppcre:split "," (action com))))
+  (let ((dir (car (ppcre:split "," (action com)))))
     (format t "YY~%")
     (cond
       ((string= dir "UP") (incf (cadr (pos com))))
@@ -395,10 +396,7 @@
 (defmethod gamekit:post-initialize ((app mogemberman))
   
   
-  (setf *game* (make-instance 'game)
-	;;*player* (make-instance 'player :pos (list 1 11))
-	*keystate* (make-instance 'keystate))
-  (get-ai-from-txt)
+  
   (create-field)
   ;;(create-player)
   ;;(create-players)
@@ -434,4 +432,8 @@
 
 
 (defun run ()
+  (setf *game* (make-instance 'game)
+	;;*player* (make-instance 'player :pos (list 1 11))
+	*keystate* (make-instance 'keystate))
+  (get-ai-from-txt)
   (gamekit:start 'mogemberman)) ;;:viewport-resizable t))
