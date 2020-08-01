@@ -1,4 +1,4 @@
-(ql:quickload '(:trivial-gamekit :cl-bodge))
+(ql:quickload '(:trivial-gamekit :cl-bodge :jonathan :cl-ppcre))
 
 (defpackage moge
   (:use :cl :trivial-gamekit))
@@ -20,19 +20,22 @@
 (defvar *keystate* nil)
 
 (defclass game ()
-  ((wall     :initarg :wall     :initform nil :accessor wall)
-   (blk      :initarg :blk      :initform nil :accessor blk)
+  ((walls     :initarg :walls     :initform nil :accessor walls)
+   (blocks      :initarg :blocks      :initform nil :accessor blocks)
    (players  :initarg :players  :initform nil :accessor players)
    (bombs    :initarg :bombs    :initform nil :accessor bombs)
    (items    :initarg :items    :initform nil :accessor items)
    (fires    :initarg :fires    :initform nil :accessor fires)
+   (turn     :initarg :turn     :initform nil :accessor turn)
    ))
 
 (defclass player ()
   ((pos          :initarg :pos          :initform nil :accessor pos)
    (id           :initarg :id           :initform 0   :accessor id)
+   (img           :initarg :img           :initform 0   :accessor img)
    (isalive      :initarg :isalive      :initform t   :accessor isalive)
    (name         :initarg :name         :initform nil :accessor name)
+   (action         :initarg :action         :initform nil :accessor action)
    (power        :initarg :power        :initform 2   :accessor power)
    (setbomblimit :initarg :setbomblimit :initform 2   :accessor setbomblimit)
    (setbombcount :initarg :setbombcount :initform 0   :accessor setbombcount)))
@@ -45,6 +48,13 @@
 (defclass fire ()
    ((pos     :initarg :pos    :initform nil :accessor pos)
     (img   :initarg :img  :initform 0   :accessor img)))
+
+
+(defclass com (player)
+  ((ai-stream     :initarg :ai-stream    :initform nil :accessor ai-stream)
+   (name     :initarg :name    :initform nil :accessor name)
+   (proc     :initarg :proc    :initform nil :accessor proc)
+   (atama     :initarg :atama    :initform nil :accessor atama)))
 
 (defclass keystate ()
   ((up     :initarg :up    :initform nil   :accessor up)
@@ -66,6 +76,88 @@
   (:viewport-title "モゲンバーマン"))
 
 
+
+;;文字幅取得
+(defun moge-char-width (char)
+    (if (<= #x20 (char-code char) #x7e)
+        1
+	2))
+;;string全体の文字幅
+(defun string-width (string)
+  (apply #'+ (map 'list #'moge-char-width string)))
+;;最低n幅もったstring作成
+(defun minimum-column (n string)
+  (let ((pad (- n (string-width string))))
+    (if (> pad 0)
+	(concatenate 'string string (make-string pad :initial-element #\ ))
+        string)))
+
+
+(defun chomp (line)
+  (let ((last-char-pos
+         (position-if (lambda (c) (and (not (equal c #\Return)) (not (equal c #\Linefeed))))
+                      line :from-end t)))
+    (if last-char-pos
+        (subseq line 0 (1+ last-char-pos))
+      "")))
+
+(defun get-ai-from-txt ()
+  (with-open-file (in "ai.txt")
+    (loop :for line = (read-line in nil)
+       :for pos :in (list (list 1 11) (list 15 11) (list 1 1) (list 15 1))
+       :for img :in (list :p1 :p2 :p3 :p4)
+       :for id :from 0 :to 3
+       :while line
+       :do (print id)
+	 (load-ai id pos img (chomp (format nil "~a" line))))))
+
+(define-condition handshake-error (error) ())
+
+
+
+;;ai.txtからai起動するコマンドを読み込む
+;;*ai* ストリーム？
+(defun load-ai (id pos img command-line)
+  (let* ((hoge (ppcre:split #\space command-line))
+	 (atama nil)
+	 (com (make-instance 'com :pos pos :id id :img img)))
+    (format t "MOGE")
+    (setf (proc com) (sb-ext:run-program
+		      (car hoge) (cdr hoge)
+		      :input :stream
+		      :output :stream
+		      :wait nil
+		      :search t))
+    (format t "HOGE")
+    (setf (ai-stream com) (make-two-way-stream (sb-ext:process-output (proc com))
+					       (sb-ext:process-input (proc com))))
+    (format t "NOGE")
+    (handler-case
+     (setf (name com) (read-line (ai-stream com)))
+     (end-of-file (c)
+                  (format t "~A~%" c)
+                  (error 'handshake-error)))
+    (format t "KOGE")
+    (when (equal (name com) "")
+      (format t "AIの名前が空です。~%")
+      (error 'handshake-error))
+    (format t "GOGE")
+    (setf atama (char (name com) 0))
+    (cond
+      ((= 2 (moge-char-width atama))
+       (setf (atama com) (format nil "~c" atama)))
+      ((= 1 (moge-char-width atama))
+       (setf (atama com) (format nil "~c" (code-char (+ 65248 (char-code atama))))))
+      (t
+       (setf (atama com) "主")))
+    (format t "LOGE")
+    (format (ai-stream com) "~d" id)
+    (finish-output (ai-stream com))
+    (format t "POGE")
+    (push com (players *game*))
+    (format t "HOGE2~%")))
+
+
 (defun create-field ()
   (loop :for y :from 0 :to *tate*
      :do (loop :for x :from 0 :to *yoko*
@@ -73,7 +165,7 @@
 		  ((or (= y 0) (= x 0)
 		       (= y *tate*) (= x *yoko*)
 		       (and (evenp x) (evenp y)))
-		   (push (list x y) (wall *game*)))
+		   (push (list x y) (walls *game*)))
 		  ((and (not (or  (and (= x 1) (= y 1))
 				  (and (= x 2) (= y 1))
 				  (and (= x 1) (= y 2))
@@ -87,12 +179,9 @@
 				  (and (= x (- *yoko* 2)) (= y (1- *tate*)))
 				  (and (= x (1- *yoko*)) (= y (- *tate* 2)))))
 			(>= (random 7) 1))
-		   (push (list x y) (blk *game*)))))))
+		   (push (list x y) (blocks *game*)))))))
 
-(defun create-player ()
-  (setf (p *game*)
-	(make-instance 'player :pos '(1 11) :name "も")
-	))
+
 
 
 (defun create-players ()
@@ -105,17 +194,17 @@
 
 
 (defun draw-field ()
-  (with-slots (wall blk) *game*
-    (loop :for w :in wall
+  (with-slots (walls blocks) *game*
+    (loop :for w :in walls
        :do (draw-image (vec2 (* (car w) 32) (* (cadr w) 32)) :wall))
-    (loop :for w :in blk
+    (loop :for w :in blocks
        :do (draw-image (vec2 (* (car w) 32) (* (cadr w) 32)) :block))))
 
 
 (defun draw-player (p)
   (let* ((x (car (pos p)))
 	 (y (cadr (pos p))))
-    (draw-image (vec2 (* x 32) (* y 32)) :p1)))
+    (draw-image (vec2 (* x 32) (* y 32)) (img p))))
 
 (defun draw-players ()
   (loop :for p :in (players *game*)
@@ -163,8 +252,8 @@
 	(down  (decf (cadr (pos *player*))))
 	(right (incf (car (pos  *player*))))
 	(left  (decf (car (pos  *player*)))))
-      (when (or (find (pos *player*) (blk *game*) :test #'equal)
-		(find (pos *player*) (wall *game*) :test #'equal)
+      (when (or (find (pos *player*) (blocks *game*) :test #'equal)
+		(find (pos *player*) (walls *game*) :test #'equal)
 		(find (pos *player*) (bombs *game*) :key #'pos :test #'equal))
 	(setf (pos *player*) hoge))
       )))
@@ -176,10 +265,10 @@
 	(y+flag t) (y-flag t))
     (labels ((check-push-fire (pos)
 	       (cond
-		 ((find pos (wall *game*) :test #'equal)
+		 ((find pos (walls *game*) :test #'equal)
 		   nil)
-		 ((find pos (blk *game*) :test #'equal)
-		  (setf (blk *game*) (remove pos (blk *game*) :test #'equal))
+		 ((find pos (blocks *game*) :test #'equal)
+		  (setf (blocks *game*) (remove pos (blocks *game*) :test #'equal))
 		  nil)
 		 (t
 		  t))))
@@ -224,7 +313,69 @@
 
 (defun update-bombs ()
   (loop :for bomb :in (bombs *game*)
-       :do (update-bomb bomb)))
+     :do (update-bomb bomb)))
+
+
+;;-----------------------------------------------------------------
+(defun create-player-data (p)
+  (append (list :id (id p))
+	  (list :name (name p))
+	  (list :pos (list :x (car (pos p)) :y (cadr (pos p))))
+	  (list :power (power p))
+	  (list :setBombLimit (setbomblimit p))
+	  (list :isAlive (isalive p))
+	  (list :setBombCount (setbombcount p))))
+
+(defun create-bomb-data (b)
+  (append (list :pos (list :x (car (pos b)) :y (cadr (pos b))))
+	  (list :timer (timer b))
+	  (list :power (power b))))
+
+(defun create-item-data (b)
+  (append (list :pos (list :x (car (pos b)) :y (cadr (pos b))))
+	  (list :name (name b))))
+
+(defun create-send-data ()
+  (append (list :turn (turn *game*))
+	  (list :walls (walls *game*))
+	  (list :blocks (blocks *game*))
+	  (list :players (mapcar #'create-player-data (players *game*)))
+	  (list :bombs (mapcar #'create-bomb-data (bombs *game*)))
+	  (list :items (mapcar #'create-item-data (items *game*)))
+	  (list :fires (fires *game*))))
+
+(defun send-data-to-com (com data)
+  (format t  "QQ~%") 
+  (format (ai-stream com) "~a~%" (jonathan:to-json data))
+  (finish-output  (ai-stream com)))
+
+  
+(defun get-data-from-com (com)
+  (format t "WW~%")
+  (format t "~a~%" (read-line (ai-stream com)))
+  ;;(setf (action com) (read-line (ai-stream com)))
+  (format t "RR~%"))
+
+
+
+;;-----------------------------------------------------------------
+(defun update-position (com)
+  (format t "TT~%")
+  (let ((dir (ppcre:split "," (action com))))
+    (format t "YY~%")
+    (cond
+      ((string= dir "UP") (incf (cadr (pos com))))
+      ((string= dir "DOWN") (decf (cadr (pos com))))
+      ((string= dir "LEFT") (decf (car (pos com))))
+      ((string= dir "RIGHT") (incf (car (pos com)))))))
+  
+(defun update-coms ()
+  (let ((data (create-send-data)))
+    (loop :for com :in (players *game*)
+       :do (send-data-to-com com data)
+	 (get-data-from-com com))
+    (loop :for com :in (players *game*)
+	 :do (update-position com))))
 
 (defmethod gamekit:draw ((app mogemberman))
   (draw-background)
@@ -232,15 +383,22 @@
   (draw-bombs)
   (draw-fires)
   (draw-test)
-  (draw-player *player*))
+  (draw-players))
+  ;;(draw-player *player*))
 
 (defmethod gamekit:act ((app mogemberman))
-  (update-player)
+  ;;(update-player)
+  (update-coms)
   (update-bombs)
-  (sleep 0.3))
+  (sleep 0.4))
 
 (defmethod gamekit:post-initialize ((app mogemberman))
   
+  
+  (setf *game* (make-instance 'game)
+	;;*player* (make-instance 'player :pos (list 1 11))
+	*keystate* (make-instance 'keystate))
+  (get-ai-from-txt)
   (create-field)
   ;;(create-player)
   ;;(create-players)
@@ -276,7 +434,4 @@
 
 
 (defun run ()
-  (setf *game* (make-instance 'game)
-	*player* (make-instance 'player :pos (list 1 11))
-	*keystate* (make-instance 'keystate))
   (gamekit:start 'mogemberman)) ;;:viewport-resizable t))
