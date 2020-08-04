@@ -33,11 +33,13 @@
 (defclass player ()
   ((pos          :initarg :pos          :initform nil :accessor pos)
    (id           :initarg :id           :initform 0   :accessor id)
-   (img           :initarg :img           :initform 0   :accessor img)
+   (img          :initarg :img          :initform 0   :accessor img)
    (isalive      :initarg :isalive      :initform t   :accessor isalive)
    (name         :initarg :name         :initform nil :accessor name)
-   (action         :initarg :action         :initform nil :accessor action)
+   (action       :initarg :action       :initform nil :accessor action)
    (power        :initarg :power        :initform 2   :accessor power)
+   (actmove      :initarg :actmove      :initform 2   :accessor actmove)
+   (actbomb      :initarg :actbomb      :initform 2   :accessor actbomb)
    (setbomblimit :initarg :setbomblimit :initform 2   :accessor setbomblimit)
    (setbombcount :initarg :setbombcount :initform 0   :accessor setbombcount)))
 
@@ -47,9 +49,13 @@
     (power   :initarg :power  :initform t   :accessor power)))
 
 (defclass fire ()
-   ((pos     :initarg :pos    :initform nil :accessor pos)
+   ((pos   :initarg :pos  :initform nil :accessor pos)
     (img   :initarg :img  :initform 0   :accessor img)))
 
+(defclass item ()
+   ((pos     :initarg :pos   :initform nil :accessor pos)
+    (name    :initarg :name  :initform nil   :accessor name)
+    (img   :initarg :img  :initform 0   :accessor img)))
 
 (defclass com (player)
   ((ai-stream     :initarg :ai-stream    :initform nil :accessor ai-stream)
@@ -68,8 +74,13 @@
 (define-image :wall "wall.png")
 (define-image :block "block.png")
 (define-image :p1 "player1.png")
+(define-image :p2 "player2.png")
+(define-image :p3 "player3.png")
+(define-image :p4 "player4.png")
 (define-image :bomb "bomb.png")
 (define-image :fire "fire.png")
+(define-image :fireup "fireup.png")
+(define-image :bombup "bombup.png")
 
 (gamekit:defgame mogemberman () ()
   (:viewport-width *window-w*)
@@ -203,9 +214,10 @@
 
 
 (defun draw-player (p)
-  (let* ((x (car (pos p)))
-	 (y (cadr (pos p))))
-    (draw-image (vec2 (* x 32) (* y 32)) (img p))))
+  (when (isalive p)
+    (let* ((x (car (pos p)))
+	   (y (cadr (pos p))))
+      (draw-image (vec2 (* x 32) (* y 32)) (img p)))))
 
 (defun draw-players ()
   (loop :for p :in (players *game*)
@@ -236,7 +248,16 @@
 
 (defun draw-fires ()
   (loop :for fire :in (fires *game*)
-       :do (draw-fire (pos fire) (img fire))))
+     :do (draw-fire (pos fire) (img fire))))
+
+
+(defun draw-item (item)
+  (draw-image (vec2 (* (car (pos item)) 32) (* (cadr (pos item)) 32))
+	      (img item)))
+
+(defun draw-items ()
+  (loop :for item :in (items *game*)
+       :do (draw-item item)))
 
 
 (defun update-player ()
@@ -260,6 +281,20 @@
       )))
 
 
+;;アイテム追加
+(defun put-item (pos)
+  (case (random 5)
+    ((0 1)
+     (push (make-instance 'item :pos pos :name "力" :img :fireup)
+	   (items *game*)))
+    ((2 3)
+     (push (make-instance 'item :pos pos :name "弾" :img :bombup)
+	   (items *game*)))
+    (4
+     (push (make-instance 'item :pos pos :name "蹴" :img :bombup)
+	   (items *game*)))))
+		
+
 ;;火起こし
 (defun create-fire (b)
   (let ((x+flag t) (x-flag t)
@@ -270,6 +305,8 @@
 		   nil)
 		 ((find pos (blocks *game*) :test #'equal)
 		  (setf (blocks *game*) (remove pos (blocks *game*) :test #'equal))
+		  (when (>= (random 10) 8)
+		    (put-item pos))
 		  nil)
 		 (t
 		  t))))
@@ -343,55 +380,96 @@
 	  (list :players (mapcar #'create-player-data (players *game*)))
 	  (list :bombs (mapcar #'create-bomb-data (bombs *game*)))
 	  (list :items (mapcar #'create-item-data (items *game*)))
-	  (list :fires (fires *game*))))
+	  (list :fires (mapcar #'pos (fires *game*)))))
 
 (defun send-data-to-com (com data)
-  (format t  "QQ~%") 
+  ;;(format t  "QQ~%") 
   (format (ai-stream com) "~a~%" (jonathan:to-json data))
   (finish-output  (ai-stream com)))
 
   
 (defun get-data-from-com (com)
-  (format t "WW~%")
- ;; (format t "~a~%" (read-line (ai-stream com)))
-  (setf (action com) (read-line (ai-stream com)))
-  (format t "RR~%"))
+  (let* ((str (read-line (ai-stream com)))
+	 (wake (ppcre:split "," str)))
+    (setf (actmove com) (car wake)
+	  (actbomb com) (cadr wake))))
+  ;;(format t "RR~%"))
 
 
 
 ;;-----------------------------------------------------------------
-(defun update-position (com)
-  (format t "TT~%")
-  (let ((dir (car (ppcre:split "," (action com)))))
-    (format t "YY~%")
+;;comがボムおく処理
+(defun update-com-put-bomb (com)
+  (when (string= (actbomb com) "true")
+    (push (make-instance 'bomb :timer 10 :power (power com)
+			 :pos (copy-list (pos com)))
+	  (bombs *game*))))
+
+;;comの移動
+(defun update-com-position (com)
+  ;;(format t "TT~%")
+  (let ((dir (actmove com))
+	(temp (copy-list (pos com))))
+    ;;(format t "YY~%")
     (cond
       ((string= dir "UP") (incf (cadr (pos com))))
       ((string= dir "DOWN") (decf (cadr (pos com))))
       ((string= dir "LEFT") (decf (car (pos com))))
-      ((string= dir "RIGHT") (incf (car (pos com)))))))
+      ((string= dir "RIGHT") (incf (car (pos com)))))
+    (when (or (find (pos com) (blocks *game*) :test #'equal)
+	      (find (pos com) (walls *game*) :test #'equal)
+	      (find (pos com) (bombs *game*) :key #'pos :test #'equal))
+	(setf (pos com) temp))))
   
 (defun update-coms ()
   (let ((data (create-send-data)))
     (loop :for com :in (players *game*)
-       :do (send-data-to-com com data)
-	 (get-data-from-com com))
+       :do (when (isalive com)
+	     (send-data-to-com com data)
+	     (get-data-from-com com)))
     (loop :for com :in (players *game*)
-	 :do (update-position com))))
+       :do (when (isalive com)
+	     (update-com-put-bomb com)))
+    (loop :for com :in (players *game*)
+       :do (when (isalive com)
+	     (update-com-position com)))))
 
 (defmethod gamekit:draw ((app mogemberman))
   (draw-background)
   (draw-field)
   (draw-bombs)
   (draw-fires)
+  (draw-items)
   (draw-test)
   (draw-players))
-  ;;(draw-player *player*))
+;;(draw-player *player*))
+
+
+(defun collision-fire-com ()
+  (loop :for p :in (players *game*)
+     :do (when (find (pos p) (mapcar #'pos (fires *game*)) :test #'equal)
+	   (setf (isalive p) nil))))
+
+;;fire-bombの当たり判定
+(defun collision-fire-bomb ()
+  (loop :for bomb :in (bombs *game*)
+     :do (when (find (pos bomb) (mapcar #'pos (fires *game*)) :test #'equal)
+	   (create-fire bomb)
+	   (setf (bombs *game*)
+		 (remove bomb (bombs *game*) :test #'equal)))))
+
+
+(defun delete-fires ()
+  (setf (fires *game*) nil))
 
 (defmethod gamekit:act ((app mogemberman))
   ;;(update-player)
-  (update-coms)
-  (update-bombs)
-  (sleep 0.4))
+  (delete-fires)
+  (update-coms) ;;移動
+  (update-bombs) ;;ボム更新&火
+  ;;(collision-fire-com)
+  (collision-fire-bomb)
+  (sleep 1))
 
 (defmethod gamekit:post-initialize ((app mogemberman))
   
