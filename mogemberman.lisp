@@ -23,7 +23,7 @@
 (defparameter *gamespeed-count* 0)
 (defparameter *draw-gamespeed-list* (list "通常" "2倍速" "4倍速" "8倍速" "高速"))
 (defparameter *frame* 0)
-(defparameter *frame-go* 60)
+(defparameter *gamespeed* 60)
 
 (defparameter *falling-wall*
   '((1 11) (2 11) (3 11) (4 11) (5 11) (6 11) (7 11) (8 11) (9 11)
@@ -36,10 +36,10 @@
     (14 9) (14 8) (14 7) (14 6) (14 5) (14 4) (14 3) (14 2)
     (13 2) (12 2) (11 2) (10 2) (9 2) (8 2) (7 2) (6 2) (5 2) (4 2) (3 2) (2 2)
     (2 3) (2 4) (2 5) (2 6) (2 7) (2 8) (2 9)
-    ;;(3 9) (4 9) (5 9) (6 9) (7 9) (8 9) (9 9) (10 9) (11 9) (12 9) (13 9)
-    ;;(13 8) (13 7) (13 6) (13 5) (13 4) (13 3)
-    ;;(12 3) (11 3) (10 3) (9 3) (8 3) (7 3) (6 3) (5 3) (4 3) (3 3)
-    ;;(3 4) (3 5) (3 6) (3 7) (3 8)
+    (3 9) (4 9) (5 9) (6 9) (7 9) (8 9) (9 9) (10 9) (11 9) (12 9) (13 9)
+    (13 8) (13 7) (13 6) (13 5) (13 4) (13 3)
+    (12 3) (11 3) (10 3) (9 3) (8 3) (7 3) (6 3) (5 3) (4 3) (3 3)
+    (3 4) (3 5) (3 6) (3 7) (3 8)
     ))
 	
 
@@ -51,6 +51,8 @@
    (items    :initarg :items    :initform nil :accessor items)
    (fires    :initarg :fires    :initform nil :accessor fires)
    (turn     :initarg :turn     :initform 1   :accessor turn)
+   (winner   :initarg :winner   :initform nil :accessor winner)
+   (state    :initarg :state    :initform t   :accessor state)
    (control  :initarg :control  :initform nil :accessor control)
    ))
 
@@ -115,11 +117,13 @@
 (define-font :mplus "mplus-1mn-regular.ttf")
 
 (defparameter *status-font* nil)
-(defparameter *gamespeed-font* nil) 
+(defparameter *gamespeed-font* nil)
+(defparameter *winner-font* nil) 
 
 (defun set-font ()
   (setf *status-font* (make-font :mplus 28)
-	*gamespeed-font*  (make-font :mplus 32)))
+	*gamespeed-font*  (make-font :mplus 32)
+	*winner-font* (make-font :mplus 46)))
 
 (gamekit:defgame mogemberman () ()
   (:viewport-width *window-w*)
@@ -240,6 +244,8 @@
 			(>= (random 7) 1))
 		   (push (list x y) (blocks *game*)))))))
 
+
+;;プレイヤーデータ初期化
 (defun init-players-data ()
   (loop :for p :in (players *game*)
      :for pos :in (list (list 1 11) (list 15 11) (list 1 1) (list 15 1))
@@ -252,13 +258,19 @@
 	       (actmove p) "STAY"
 	       (actbomb p) "false")))
 
+;;データ初期化
 (defun init-data ()
   (setf (walls *game*) nil
 	(blocks *game*) nil
 	(bombs *game*) nil
 	(fires *game*) nil
 	(items *game*) nil
-	(turn *game*) 1)
+	(turn *game*) 1
+	(winner *game*) nil
+	(state *game*) t
+	*gamespeed* 60
+	*gamespeed-count* 0
+	*frame* 0)
   (init-players-data)
   (create-field ))
   
@@ -275,11 +287,17 @@
        :do (draw-image (vec2 (* (car w) 32) (* (cadr w) 32)) :block))))
 
 
-(defun draw-gamespeed ()
+(defun draw-gameinfo ()
   (draw-text (format nil "ゲーム速度:~a (左shiftで変更)"
 		     (nth *gamespeed-count* *draw-gamespeed-list*))
-	     (vec2 260 500) :font *gamespeed-font* )
-  (draw-text "rキーで再戦(初期化)" (vec2 260 460) :font *gamespeed-font*))
+	     (vec2 240 550) :font *gamespeed-font* )
+  (draw-text "rキーで再戦(初期化)" (vec2 240 510) :font *gamespeed-font*)
+  (when (winner *game*)
+    (if (eq (winner *game*) :draw)
+	(draw-text "引き分け！" (vec2 240 430) :font *winner-font*)
+	(draw-text (format nil "~a の勝ちです！" (winner *game*))
+		   (vec2 240 430) :font *winner-font*))))
+	
 
 ;;ステータス表示
 (defun draw-com-status (p status-y)
@@ -293,15 +311,15 @@
     ))
 
 (defun draw-player (p status-y)
-  (draw-com-status p status-y)
   (when (isalive p)
+    (draw-com-status p status-y)
     (let* ((x (car (pos p)))
 	   (y (cadr (pos p))))
       (draw-image (vec2 (* x 32) (* y 32)) (img p)))))
 
 (defun draw-players ()
   (loop :for p :in (players *game*)
-       :for status-y :from 380 :downto 0 :by 100
+     :for status-y :from 380 :downto 0 :by 100
      :do (draw-player p status-y)))
 
 
@@ -350,14 +368,14 @@
 
 ;;アイテム追加
 (defun put-item (pos)
-  (case (random 5)
-    ((0 1)
+  (case (random 7)
+    ((0 1 2)
      (push (make-instance 'item :pos pos :name "力" :img :fireup)
 	   (items *game*)))
-    ((2 3)
+    ((3 4 5)
      (push (make-instance 'item :pos pos :name "弾" :img :bombup)
 	   (items *game*)))
-    (4
+    (6
      (push (make-instance 'item :pos pos :name "蹴" :img :kick)
 	   (items *game*)))))
 		
@@ -542,7 +560,7 @@
 
 (defmethod gamekit:draw ((app mogemberman))
   (draw-background)
-  (draw-gamespeed )
+  (draw-gameinfo)
   (draw-field)
   (draw-items)
   (draw-fires)
@@ -563,6 +581,7 @@
 	     (setf (items *game*)
 		   (remove item (items *game*) :test #'equal))))))
 
+;;火とキャラの当たり判定
 (defun collision-fire-com ()
   (loop :for p :in (players *game*)
      :do (when (find (pos p) (mapcar #'pos (fires *game*)) :test #'equal)
@@ -613,22 +632,38 @@
 	(push (nth a *falling-wall*)
 	      (walls *game*))))))
 
+;;ゲーム勝敗判定
+(defun end-game? ()
+  (cond
+    ;;生き残りが一人
+    ((= 1 (count t (players *game*) :key #'isalive))
+     (let ((p (find t (players *game*) :key #'isalive)))
+       (setf (winner *game*) (name p)
+	     (state *game*) nil)))
+    ;;1ターンで同時死亡
+    ((= 0 (count t (players *game*) :key #'isalive))
+     (setf (winner *game*) :draw
+	   (state *game*) nil))))
+
 
 (defmethod gamekit:act ((app mogemberman))
   (with-slots (zkey left right up down spc) *keystate*
-    (when (or (and (not (control *game*))
-		   (zerop (mod *frame* *frame-go*)))
-	      (and (control *game*)
+    (when (or (and (state *game*)
+		   (not (control *game*))
+		   (zerop (mod *frame* *gamespeed*)))
+	      (and (state *game*)
+		   (control *game*)
 		   (or zkey left right up down spc)))
       ;;(update-player)
       (add-wall)
       (delete-fires)
       (update-coms) ;;移動
       (update-bombs) ;;ボム更新&火
-      ;;(collision-fire-com)
       (collision-fire-bomb)
       (collision-item-com)
-      (collision-fire-item )
+      (collision-fire-item)
+      (collision-fire-com)
+      (end-game?)
       (init-keystate)
       (incf (turn *game*))
       (setf *frame* 0))
@@ -652,7 +687,7 @@
 		 (incf *gamespeed-count*)
 		 (when (> *gamespeed-count* 4)
 		   (setf *gamespeed-count* 0))
-		 (setf *frame-go* (nth *gamespeed-count* *gamespeed-list*))))
+		 (setf *gamespeed* (nth *gamespeed-count* *gamespeed-list*))))
   (bind-button :right :pressed
 	       (lambda () (setf (right *keystate*) t)))
   (bind-button :left :pressed
