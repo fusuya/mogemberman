@@ -1,4 +1,4 @@
-;;trivial-gamekit‚ÌŠÖ”‚ÌŠO‚Åai“Ç‚İ‚İ‚µ‚È‚¢‚Æ‚¾‚ß‚ç‚µ‚¢
+;;trivial-gamekitã®é–¢æ•°ã®å¤–ã§aièª­ã¿è¾¼ã¿ã—ãªã„ã¨ã ã‚ã‚‰ã—ã„
 (ql:quickload '(:trivial-gamekit :cl-bodge :jonathan :cl-ppcre))
 
 (defpackage moge
@@ -21,7 +21,7 @@
 (defvar *keystate* nil)
 (defparameter *gamespeed-list* (list 60 30 15 7 1))
 (defparameter *gamespeed-count* 0)
-(defparameter *draw-gamespeed-list* (list "’Êí" "2”{‘¬" "4”{‘¬" "8”{‘¬" "‚‘¬"))
+(defparameter *draw-gamespeed-list* (list "é€šå¸¸" "2å€é€Ÿ" "4å€é€Ÿ" "8å€é€Ÿ" "é«˜é€Ÿ"))
 (defparameter *frame* 0)
 (defparameter *gamespeed* 60)
 
@@ -41,7 +41,7 @@
     (12 3) (11 3) (10 3) (9 3) (8 3) (7 3) (6 3) (5 3) (4 3) (3 3)
     (3 4) (3 5) (3 6) (3 7) (3 8)
     ))
-	
+
 
 (defclass game ()
   ((walls    :initarg :walls    :initform nil :accessor walls)
@@ -74,6 +74,7 @@
 (defclass bomb ()
    ((pos     :initarg :pos    :initform nil :accessor pos)
     (timer   :initarg :timer  :initform 0   :accessor timer)
+    (id   :initarg :id  :initform 0   :accessor id)
     (kicked  :initarg :kicked :initform nil :accessor kicked)
     (power   :initarg :power  :initform t   :accessor power)))
 
@@ -118,7 +119,7 @@
 
 (defparameter *status-font* nil)
 (defparameter *gamespeed-font* nil)
-(defparameter *winner-font* nil) 
+(defparameter *winner-font* nil)
 
 (defun set-font ()
   (setf *status-font* (make-font :mplus 28)
@@ -128,19 +129,19 @@
 (gamekit:defgame mogemberman () ()
   (:viewport-width *window-w*)
   (:viewport-height *window-h*)
-  (:viewport-title "ƒ‚ƒQƒ“ƒo[ƒ}ƒ“"))
+  (:viewport-title "ãƒ¢ã‚²ãƒ³ãƒãƒ¼ãƒãƒ³"))
 
 
 
-;;•¶š•æ“¾
+;;æ–‡å­—å¹…å–å¾—
 (defun moge-char-width (char)
     (if (<= #x20 (char-code char) #x7e)
         1
 	2))
-;;string‘S‘Ì‚Ì•¶š•
+;;stringå…¨ä½“ã®æ–‡å­—å¹…
 (defun string-width (string)
   (apply #'+ (map 'list #'moge-char-width string)))
-;;Å’án•‚à‚Á‚½stringì¬
+;;æœ€ä½nå¹…ã‚‚ã£ãŸstringä½œæˆ
 (defun minimum-column (n string)
   (let ((pad (- n (string-width string))))
     (if (> pad 0)
@@ -150,16 +151,16 @@
 
 (defun chomp (line)
   (let ((last-char-pos
-         (position-if (lambda (c) (and (not (equal c #\Return)) (not (equal c #\Linefeed))))
-                      line :from-end t)))
+          (position-if (lambda (c) (and (not (equal c #\Return)) (not (equal c #\Linefeed))))
+                       line :from-end t)))
     (if last-char-pos
         (subseq line 0 (1+ last-char-pos))
-      "")))
+        "")))
 
 
 (define-condition handshake-error (error) ())
-;;ai.txt‚©‚çai‹N“®‚·‚éƒRƒ}ƒ“ƒh‚ğ“Ç‚İ‚Ş
-;;*ai* ƒXƒgƒŠ[ƒ€H
+;;ai.txtã‹ã‚‰aièµ·å‹•ã™ã‚‹ã‚³ãƒãƒ³ãƒ‰ã‚’èª­ã¿è¾¼ã‚€
+;;*ai* ã‚¹ãƒˆãƒªãƒ¼ãƒ ï¼Ÿ
 (defun load-ai (id pos img command-line)
   (let* ((hoge (ppcre:split #\space command-line))
 	 (atama nil)
@@ -178,7 +179,7 @@
                   (format t "~A~%" c)
                   (error 'handshake-error)))
     (when (equal (name com) "")
-      (format t "AI‚Ì–¼‘O‚ª‹ó‚Å‚·B~%")
+      (format t "AIã®åå‰ãŒç©ºã§ã™ã€‚~%")
       (error 'handshake-error))
     (setf atama (char (name com) 0))
     (cond
@@ -187,12 +188,12 @@
       ((= 1 (moge-char-width atama))
        (setf (atama com) (format nil "~c" (code-char (+ 65248 (char-code atama))))))
       (t
-       (setf (atama com) "å")))
+       (setf (atama com) "ä¸»")))
     (format (ai-stream com) "~d~%" id)
     (finish-output (ai-stream com))
     (setf (players *game*) (append (players *game*) (list com)))))
 
-;;g—p‚·‚éai“Ç‚İ‚Ş3‘ÌˆÈ‰º‚È‚ç‘€ìƒLƒƒƒ‰‚ğ’Ç‰Á
+;;ä½¿ç”¨ã™ã‚‹aièª­ã¿è¾¼ã‚€3ä½“ä»¥ä¸‹ãªã‚‰æ“ä½œã‚­ãƒ£ãƒ©ã‚’è¿½åŠ 
 (defun get-ai-from-txt ()
   (with-open-file (in "ai.txt")
     (loop :for line = (read-line in nil)
@@ -202,7 +203,7 @@
        :while line
        :do (print id)
 	 (load-ai id pos img (chomp (format nil "~a" line)))))
-  ;;ai‚ª3lˆÈ‰º‚È‚ç‘€ìƒLƒƒƒ‰‚ğ’Ç‰Á
+  ;;aiãŒ3äººä»¥ä¸‹ãªã‚‰æ“ä½œã‚­ãƒ£ãƒ©ã‚’è¿½åŠ 
   (let ((len (length (players *game*)))
 	(p nil))
     (when (> 4 len)
@@ -211,7 +212,7 @@
 	(2 (setf p (make-instance 'player :pos (list 1 1) :id 3 :img :p3)))
 	(3 (setf p (make-instance 'player :pos (list 15 1) :id 4 :img :p4))))
       (setf (playing p) t
-	    (name p) "‚ ‚È‚½"
+	    (name p) "ã‚ãªãŸ"
 	    (control *game*) t)
       (setf (players *game*) (append (players *game*) (list p))))))
 
@@ -245,7 +246,7 @@
 		   (push (list x y) (blocks *game*)))))))
 
 
-;;ƒvƒŒƒCƒ„[ƒf[ƒ^‰Šú‰»
+;;ãƒ‡ãƒ¼ã‚¿åˆæœŸåŒ–
 (defun init-players-data ()
   (loop :for p :in (players *game*)
      :for pos :in (list (list 1 11) (list 15 11) (list 1 1) (list 15 1))
@@ -258,7 +259,7 @@
 	       (actmove p) "STAY"
 	       (actbomb p) "false")))
 
-;;ƒf[ƒ^‰Šú‰»
+;;ãƒ‡ãƒ¼ã‚¿åˆæœŸåŒ–
 (defun init-data ()
   (setf (walls *game*) nil
 	(blocks *game*) nil
@@ -273,7 +274,7 @@
 	*frame* 0)
   (init-players-data)
   (create-field ))
-  
+
 
 (defun draw-background ()
   (draw-rect (vec2 0 0) *window-w* *window-h* :fill-paint *green*))
@@ -288,26 +289,26 @@
 
 
 (defun draw-gameinfo ()
-  (draw-text (format nil "ƒQ[ƒ€‘¬“x:~a (¶shift‚Å•ÏX)"
+  (draw-text (format nil "ã‚²ãƒ¼ãƒ é€Ÿåº¦:~a (å·¦shiftã§å¤‰æ›´)"
 		     (nth *gamespeed-count* *draw-gamespeed-list*))
 	     (vec2 240 550) :font *gamespeed-font* )
-  (draw-text "rƒL[‚ÅÄí(‰Šú‰»)" (vec2 240 510) :font *gamespeed-font*)
+  (draw-text "rã‚­ãƒ¼ã§å†æˆ¦(åˆæœŸåŒ–)" (vec2 240 510) :font *gamespeed-font*)
   (when (winner *game*)
     (if (eq (winner *game*) :draw)
-	(draw-text "ˆø‚«•ª‚¯I" (vec2 240 430) :font *winner-font*)
-	(draw-text (format nil "~a ‚ÌŸ‚¿‚Å‚·I" (winner *game*))
+	(draw-text "å¼•ãåˆ†ã‘ï¼" (vec2 240 430) :font *winner-font*)
+	(draw-text (format nil "~a ã®å‹ã¡ã§ã™ï¼"  (winner *game*))
 		   (vec2 240 430) :font *winner-font*))))
-	
 
-;;ƒXƒe[ƒ^ƒX•\¦
+
+;;ï¿½Xï¿½eï¿½[ï¿½^ï¿½Xï¿½\ï¿½ï¿½
 (defun draw-com-status (p status-y)
-  (let ((k (if (kick p) "‚ ‚è" "‚È‚µ")))
+  (let ((k (if (kick p) "ã‚ã‚Š" "ãªã—")))
     (draw-rect (vec2 550 (- status-y 50)) 240 90 :stroke-paint *black*)
     (draw-image (vec2 550 status-y) (img p))
-    (draw-text (format nil "–¼‘O:~a" (name p)) (vec2 590 (+ status-y 20)) :font *status-font*)
-    (draw-text (format nil "ƒ{ƒ€:~d" (setbomblimit p)) (vec2 590 (- status-y 0)) :font *status-font*)
-    (draw-text (format nil "‰Î—Í:~d" (power p)) (vec2 590 (- status-y 20)) :font *status-font*)
-    (draw-text (format nil "ƒLƒbƒN:~a" k) (vec2 590 (- status-y 40)) :font *status-font*)
+    (draw-text (format nil "åå‰:~a" (name p)) (vec2 590 (+ status-y 20)) :font *status-font*)
+    (draw-text (format nil "ãƒœãƒ :~d" (setbomblimit p)) (vec2 590 (- status-y 0)) :font *status-font*)
+    (draw-text (format nil "ç«åŠ›:~d" (power p)) (vec2 590 (- status-y 20)) :font *status-font*)
+    (draw-text (format nil "ã‚­ãƒƒã‚¯:~a" k) (vec2 590 (- status-y 40)) :font *status-font*)
     ))
 
 (defun draw-player (p status-y)
@@ -366,68 +367,73 @@
       (t (setf (actmove p) "STOP")))))
 
 
-;;ƒAƒCƒeƒ€’Ç‰Á
+;;ã‚¢ã‚¤ãƒ†ãƒ è¿½åŠ 
 (defun put-item (pos)
   (case (random 7)
     ((0 1 2)
-     (push (make-instance 'item :pos pos :name "—Í" :img :fireup)
+     (push (make-instance 'item :pos pos :name "åŠ›" :img :fireup)
 	   (items *game*)))
     ((3 4 5)
-     (push (make-instance 'item :pos pos :name "’e" :img :bombup)
+     (push (make-instance 'item :pos pos :name "å¼¾" :img :bombup)
 	   (items *game*)))
     (6
-     (push (make-instance 'item :pos pos :name "R" :img :kick)
+     (push (make-instance 'item :pos pos :name "è¹´" :img :kick)
 	   (items *game*)))))
-		
 
-;;‰Î‹N‚±‚µ
+;;ãƒœãƒ ãŒçˆ†ç™ºã—ãŸã‚‰ãƒœãƒ ç½®ã„ãŸæ•°æ¸›ã‚‰ã™
+(defun decf-bomb-count (b)
+  (let ((p (find (id b) (players *game*) :key #'id)))
+    (decf (setbombcount p))))
+
+;;;ç«èµ·ã“ã—
 (defun create-fire (b)
   (let ((x+flag t) (x-flag t)
-	(y+flag t) (y-flag t))
+        (y+flag t) (y-flag t))
+    (decf-bomb-count b)
     (labels ((check-push-fire (pos)
-	       (cond
-		 ((find pos (walls *game*) :test #'equal)
-		   nil)
-		 ((find pos (blocks *game*) :test #'equal)
-		  (setf (blocks *game*) (remove pos (blocks *game*) :test #'equal))
-		  (when (>= (random 10) 8)
-		    (put-item pos))
-		  nil)
-		 (t
-		  t))))
+	             (cond
+            		 ((find pos (walls *game*) :test #'equal)
+            		   nil)
+            		 ((find pos (blocks *game*) :test #'equal)
+            		  (setf (blocks *game*) (remove pos (blocks *game*) :test #'equal))
+            		  (when (>= (random 10) 8)
+            		    (put-item pos))
+            		  nil)
+            		 (t
+            		  t))))
       (push (make-instance 'fire :pos (copy-list (pos b)) :img (vec2 0 64))
-	    (fires *game*))
+	          (fires *game*))
       (loop :for power :from 1 :to (power b)
-	 :do (let ((x+ (list (+ (car (pos b)) power) (cadr (pos b))))
-		   (x- (list (- (car (pos b)) power) (cadr (pos b))))
-		   (y+ (list (car (pos b)) (+ (cadr (pos b)) power)))
-		   (y- (list (car (pos b)) (- (cadr (pos b)) power))))
-	       (if (and x+flag
-			(check-push-fire x+))
-		   (push (make-instance 'fire :pos x+
-					:img (if (= power (power b)) (vec2 32 0) (vec2 0 0)))
-			 (fires *game*))
-		   (setf x+flag nil))
-	       (if (and x-flag
-			(check-push-fire x-))
-		   (push (make-instance 'fire :pos x-
-					:img (if (= power (power b)) (vec2 64 0) (vec2 0 0)))
-			 (fires *game*))
-		   (setf x-flag nil))
-	       (if (and y+flag
-			(check-push-fire y+))
-		   (push (make-instance 'fire :pos y+ 
-					:img (if (= power (power b)) (vec2 32 32) (vec2 0 32)))
-			 (fires *game*))
-		   (setf y+flag nil))
-	       (if (and y-flag
-			(check-push-fire y-))
-		   (push (make-instance 'fire :pos y-
-					:img (if (= power (power b)) (vec2 64 32) (vec2 0 32)))
-			 (fires *game*))
-		   (setf y-flag nil)))))))
+	          :do (let ((x+ (list (+ (car (pos b)) power) (cadr (pos b))))
+              		   (x- (list (- (car (pos b)) power) (cadr (pos b))))
+              		   (y+ (list (car (pos b)) (+ (cadr (pos b)) power)))
+              		   (y- (list (car (pos b)) (- (cadr (pos b)) power))))
+        	       (if (and x+flag
+              			     (check-push-fire x+))
+              		   (push (make-instance 'fire :pos x+
+              					                 :img (if (= power (power b)) (vec2 32 0) (vec2 0 0)))
+		                       (fires *game*))
+              		   (setf x+flag nil))
+        	       (if (and x-flag
+        			(check-push-fire x-))
+        		   (push (make-instance 'fire :pos x-
+        					:img (if (= power (power b)) (vec2 64 0) (vec2 0 0)))
+        			 (fires *game*))
+        		   (setf x-flag nil))
+        	       (if (and y+flag
+        			(check-push-fire y+))
+        		   (push (make-instance 'fire :pos y+
+        					:img (if (= power (power b)) (vec2 32 32) (vec2 0 32)))
+        			 (fires *game*))
+        		   (setf y+flag nil))
+        	       (if (and y-flag
+        			(check-push-fire y-))
+        		   (push (make-instance 'fire :pos y-
+        					:img (if (= power (power b)) (vec2 64 32) (vec2 0 32)))
+        			 (fires *game*))
+        		   (setf y-flag nil)))))))
 
-;;•Ç‚ÆƒuƒƒbƒN‚Æƒ{ƒ€‚Æ‚Ì“–‚½‚è”»’è
+;;å£ã¨ãƒ–ãƒ­ãƒƒã‚¯ã¨ãƒœãƒ ã¨ã®å½“ãŸã‚Šåˆ¤å®š
 (defun collision-blocks-walls-boms (pos)
   (or (find pos (blocks *game*) :test #'equal)
       (find pos (walls *game*) :test #'equal)
@@ -440,19 +446,19 @@
     ((= (timer b) 0)
      (create-fire b)
      (setf (bombs *game*)
-	   (remove b (bombs *game*) :test #'equal)))
+	         (remove b (bombs *game*) :test #'equal)))
     ((kicked b)
      (let ((temp (copy-list (pos b))))
-       (cond 
-	 ((string= (kicked b) "UP")    (incf (cadr (pos b))))
-	 ((string= (kicked b) "DOWN")  (decf (cadr (pos b))))
-	 ((string= (kicked b) "RIGHT") (incf (car (pos b))))
-	 ((string= (kicked b) "LEFT")  (decf (car (pos b)))))
+       (cond
+      	 ((string= (kicked b) "UP")    (incf (cadr (pos b))))
+      	 ((string= (kicked b) "DOWN")  (decf (cadr (pos b))))
+      	 ((string= (kicked b) "RIGHT") (incf (car (pos b))))
+      	 ((string= (kicked b) "LEFT")  (decf (car (pos b)))))
        (when (or (find (pos b) (blocks *game*) :test #'equal)
-		 (find (pos b) (walls *game*) :test #'equal)
-		 (find (pos b) (remove b (bombs *game*) :test #'equal) :key #'pos :test #'equal))
-	 (setf (pos b) temp
-	       (kicked b) nil))))))
+		             (find (pos b) (walls *game*) :test #'equal)
+	               (find (pos b) (remove b (bombs *game*) :test #'equal) :key #'pos :test #'equal))
+      	 (setf (pos b) temp
+      	       (kicked b) nil))))))
 
 (defun update-bombs ()
   (loop :for bomb :in (bombs *game*)
@@ -488,31 +494,33 @@
 	  (list :fires (mapcar #'pos (fires *game*)))))
 
 (defun send-data-to-com (com data)
-  ;;(format t  "QQ~%") 
+  ;;(format t  "QQ~%")
   (format (ai-stream com) "~a~%" (jonathan:to-json data))
   (finish-output  (ai-stream com)))
 
-  
+
 (defun get-data-from-com (com)
   (let* ((str (read-line (ai-stream com)))
-	 (wake (ppcre:split "," str)))
+	       (wake (ppcre:split "," str)))
     (setf (actmove com) (car wake)
-	  (actbomb com) (cadr wake))))
+	        (actbomb com) (cadr wake))))
   ;;(format t "RR~%"))
 
 
 
 ;;-----------------------------------------------------------------
-;;com‚ªƒ{ƒ€‚¨‚­ˆ—
+;;comãŒãƒœãƒ ãŠãå‡¦ç†
 (defun update-com-put-bomb (com)
-  (when (string= (actbomb com) "true")
-    (push (make-instance 'bomb :timer 10 :power (power com)
-			 :pos (copy-list (pos com)))
-	  (bombs *game*))
+  (when (and (> (setbomblimit com) (setbombcount com))
+             (string= (actbomb com) "true"))
+    (push (make-instance 'bomb :timer 10 :power (power com) :id (id com)
+			                         :pos (copy-list (pos com)))
+          (bombs *game*))
+    (incf (setbombcount com))
     (when (playing com)
       (setf (actbomb com) "false"))))
 
-;;com‚ÌˆÚ“®
+;;comã®ç§»å‹•
 (defun update-com-position (com)
   ;;(format t "TT~%")
   (let ((dir (actmove com))
@@ -534,12 +542,13 @@
 	       (kicked bomb) dir))
 	(bomb
 	 (setf (pos com) temp))))
-    ;;‘€ìƒLƒƒƒ‰ˆÚ“®•ûŒü‰Šú‰»
+     ;;æ“ä½œã‚­ãƒ£ãƒ©ç§»å‹•æ–¹å‘åˆæœŸåŒ–
     (when (playing com)
       (setf (actmove com) "STOP"))))
-  
+
 (defun update-coms ()
   (let ((data (create-send-data)))
+    ;;(format t "~a~%" (jonathan:to-json data))
     (loop :for com :in (players *game*)
        :do (when (isalive com)
 	     (if (playing com)
@@ -569,7 +578,7 @@
   (draw-turn))
 ;;(draw-player *player*))
 
-;;ƒAƒCƒeƒ€‚ÆƒLƒƒƒ‰‚Ì“–‚½‚è”»’è
+;;ã‚¢ã‚¤ãƒ†ãƒ ã¨ã‚­ãƒ£ãƒ©ã®å½“ãŸã‚Šåˆ¤å®š
 (defun collision-item-com ()
   (loop :for p :in (players *game*)
      :do (let ((item (find (pos p) (items *game*) :key #'pos :test #'equal)))
@@ -581,11 +590,17 @@
 	     (setf (items *game*)
 		   (remove item (items *game*) :test #'equal))))))
 
-;;‰Î‚ÆƒLƒƒƒ‰‚Ì“–‚½‚è”»’è
+
+(defun collision-wall-com ()
+ (loop :for p :in (players *game*)
+    :do (when (find (pos p) (walls *game*) :test #'equal)
+	         (setf (isalive p) nil))))
+
+;;;ç«ã¨ã‚­ãƒ£ãƒ©ã®å½“ãŸã‚Šåˆ¤å®š
 (defun collision-fire-com ()
   (loop :for p :in (players *game*)
      :do (when (find (pos p) (mapcar #'pos (fires *game*)) :test #'equal)
-	   (setf (isalive p) nil))))
+	         (setf (isalive p) nil))))
 
 (defun collision-fire-item ()
   (loop :for item :in (items *game*)
@@ -594,15 +609,15 @@
 		 (remove item (items *game*) :test #'equal)))))
 
 
-;;fire-bomb‚Ì“–‚½‚è”»’è
+;;fire-bombã®å½“ãŸã‚Šåˆ¤å®š
 (defun collision-fire-bomb ()
   (let ((hoge nil))
     (loop :for bomb :in (bombs *game*)
        :do (when (find (pos bomb) (mapcar #'pos (fires *game*)) :test #'equal)
-	     (create-fire bomb)
-	     (setf hoge t)
-	     (setf (bombs *game*)
-		   (remove bomb (bombs *game*) :test #'equal))))
+      	     (create-fire bomb)
+      	     (setf hoge t)
+      	     (setf (bombs *game*)
+      		         (remove bomb (bombs *game*) :test #'equal))))
     (when hoge
       (collision-fire-bomb))))
 
@@ -618,7 +633,7 @@
        :do (setf time2 (get-internal-real-time)))))
 
 
-;;ƒL[“ü—Í‚ğnil‚É‚·‚é
+;;ã‚­ãƒ¼å…¥åŠ›ã‚’nilã«ã™ã‚‹
 (defun init-keystate ()
   (with-slots (zkey left right up down spc) *keystate*
     (setf zkey nil left nil right nil up nil down nil spc nil)))
@@ -632,15 +647,15 @@
 	(push (nth a *falling-wall*)
 	      (walls *game*))))))
 
-;;ƒQ[ƒ€Ÿ”s”»’è
+;;ã‚²ãƒ¼ãƒ å‹æ•—åˆ¤å®š
 (defun end-game? ()
   (cond
-    ;;¶‚«c‚è‚ªˆêl
+    ;;ç”Ÿãæ®‹ã‚ŠãŒä¸€äºº
     ((= 1 (count t (players *game*) :key #'isalive))
      (let ((p (find t (players *game*) :key #'isalive)))
        (setf (winner *game*) (name p)
 	     (state *game*) nil)))
-    ;;1ƒ^[ƒ“‚Å“¯€–S
+    ;;1ã‚¿ãƒ¼ãƒ³ã§åŒæ™‚æ­»äº¡
     ((= 0 (count t (players *game*) :key #'isalive))
      (setf (winner *game*) :draw
 	   (state *game*) nil))))
@@ -649,20 +664,21 @@
 (defmethod gamekit:act ((app mogemberman))
   (with-slots (zkey left right up down spc) *keystate*
     (when (or (and (state *game*)
-		   (not (control *game*))
-		   (zerop (mod *frame* *gamespeed*)))
-	      (and (state *game*)
-		   (control *game*)
-		   (or zkey left right up down spc)))
+		               (not (control *game*))
+	                 (zerop (mod *frame* *gamespeed*)))
+              (and (state *game*)
+		               (control *game*)
+	                 (or zkey left right up down spc)))
       ;;(update-player)
       (add-wall)
       (delete-fires)
-      (update-coms) ;;ˆÚ“®
-      (update-bombs) ;;ƒ{ƒ€XV&‰Î
+      (update-coms) ;;ç§»å‹•
+      (update-bombs) ;;ãƒœãƒ ã®æ›´æ–°
       (collision-fire-bomb)
       (collision-item-com)
       (collision-fire-item)
       (collision-fire-com)
+      (collision-wall-com)
       (end-game?)
       (init-keystate)
       (incf (turn *game*))
@@ -671,8 +687,8 @@
 
 (defmethod gamekit:post-initialize ((app mogemberman))
   (set-font)
-  
-  
+
+
   (create-field)
   ;;(create-player)
   ;;(create-players)
@@ -680,7 +696,7 @@
 	       (lambda () (init-data)))
   (bind-button :z :pressed
 	       (lambda () (setf (zkey *keystate*) t)))
-  (bind-button :z :released 
+  (bind-button :z :released
 	       (lambda () (setf (zkey *keystate*) nil)))
   (bind-button :left-shift :pressed
 	       (lambda ()
@@ -696,7 +712,7 @@
 	       (lambda () (setf (up *keystate*) t)))
   (bind-button :down :pressed
 	       (lambda () (setf (down *keystate*) t)))
-  (bind-button :right :released 
+  (bind-button :right :released
 	       (lambda () (setf (right *keystate*) nil)))
   (bind-button :left :released
 	       (lambda () (setf (left *keystate*) nil)))
