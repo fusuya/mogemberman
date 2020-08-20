@@ -478,7 +478,8 @@
 (defun create-bomb-data (b)
   (append (list :pos (list :x (car (pos b)) :y (cadr (pos b))))
 	  (list :timer (timer b))
-	  (list :power (power b))))
+	  (list :power (power b))
+	  (list :id (id b))))
 
 (defun create-item-data (b)
   (append (list :pos (list :x (car (pos b)) :y (cadr (pos b))))
@@ -548,7 +549,7 @@
 
 (defun update-coms ()
   (let ((data (create-send-data)))
-    ;;(format t "~a~%" (jonathan:to-json data))
+    (format t "~a~%" (jonathan:to-json data))
     (loop :for com :in (players *game*)
        :do (when (isalive com)
 	     (if (playing com)
